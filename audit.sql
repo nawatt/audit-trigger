@@ -1,7 +1,7 @@
 -- This is based on 2ndQuadrant/audit-trigger.
 --
 -- Few changes from the original
--- 1. Requires postgres >= 10
+-- 1. Requires postgres >= 9.6
 -- 2. Row data is stored in jsonb
 
 -- The following are comments preserved from the original file:
@@ -89,6 +89,33 @@ CREATE INDEX logged_actions_relid_idx ON audit.logged_actions(relid);
 CREATE INDEX logged_actions_action_tstamp_tx_stm_idx ON audit.logged_actions(action_tstamp_stm);
 CREATE INDEX logged_actions_action_idx ON audit.logged_actions(action);
 
+--
+-- Helper function to support postgres 9.6
+CREATE OR REPLACE FUNCTION audit.exclude_keys(obj jsonb, ekeys text[]) RETURNS jsonb AS $$
+DECLARE
+    dest jsonb;
+BEGIN
+    SELECT json_object_agg(filtered.key, filtered.value) into dest
+        FROM (
+            SELECT * from jsonb_each(obj) where NOT (key = ANY (ekeys))
+        ) as filtered;
+    
+    RETURN dest;
+END;
+$$ LANGUAGE plpgsql
+IMMUTABLE
+RETURNS NULL ON NULL INPUT;
+
+COMMENT ON FUNCTION audit.exclude_keys() IS $body$
+Compatibility Function for postgres 9.6.
+The function excludes a specific set of keys given in the second parameter from the jsonb object provided in the first parameter.
+
+param 0: jsonb, The object to be processed.
+
+param 1: text[], columns to be excluded.
+
+$body$;
+                                
 CREATE OR REPLACE FUNCTION audit.if_modified_func() RETURNS TRIGGER AS $body$
 DECLARE
     audit_row audit.logged_actions;
@@ -131,9 +158,9 @@ BEGIN
     IF (TG_OP = 'UPDATE' AND TG_LEVEL = 'ROW') THEN
         old_r = to_jsonb(OLD);
         new_r = to_jsonb(NEW);
-        audit_row.row_data = old_r - excluded_cols;
+        audit_row.row_data = exclude_keys(old_r, excluded_cols);
         SELECT
-          jsonb_object_agg(new_t.key, new_t.value) - excluded_cols
+          exclude_keys(jsonb_object_agg(new_t.key, new_t.value), excluded_cols)
         INTO
           audit_row.changed_fields
         FROM jsonb_each(old_r) as old_t
