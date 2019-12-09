@@ -167,9 +167,9 @@ BEGIN
         JOIN jsonb_each(new_r) as new_t
           ON (old_t.key = new_t.key AND old_t.value <> new_t.value);
     ELSIF (TG_OP = 'DELETE' AND TG_LEVEL = 'ROW') THEN
-        audit_row.row_data = to_jsonb(OLD) - excluded_cols;
+        audit_row.row_data = exclude_keys(to_jsonb(OLD), excluded_cols);
     ELSIF (TG_OP = 'INSERT' AND TG_LEVEL = 'ROW') THEN
-        audit_row.row_data = to_jsonb(NEW) - excluded_cols;
+        audit_row.row_data = exclude_keys(to_jsonb(NEW), excluded_cols);
     ELSIF (TG_LEVEL = 'STATEMENT' AND TG_OP IN ('INSERT','UPDATE','DELETE','TRUNCATE')) THEN
         audit_row.statement_only = 't';
     ELSE
