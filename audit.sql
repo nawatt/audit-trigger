@@ -106,7 +106,7 @@ $$ LANGUAGE plpgsql
 IMMUTABLE
 RETURNS NULL ON NULL INPUT;
 
-COMMENT ON FUNCTION audit.exclude_keys() IS $body$
+COMMENT ON FUNCTION audit.exclude_keys(jsonb, text[]) IS $body$
 Compatibility Function for postgres 9.6.
 The function excludes a specific set of keys given in the second parameter from the jsonb object provided in the first parameter.
 
